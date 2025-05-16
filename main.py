@@ -24,68 +24,66 @@ def get_categories():
     conn.close()
     return categories
 
-def get_recipes(q):
-    # Setting up connection
+def get_recipes(filter_q=None, sort="score", limit=None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    # If statement for query
-    if q:
-        query = f"%{q}%"
-        cursor.execute("SELECT recipes.id, title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id WHERE title LIKE ? OR description LIKE ? GROUP BY recipes.id ORDER BY score desc", (query, query))
-    else:    
-        cursor.execute("SELECT recipes.id, title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes on recipes.id = recipe_votes.recipe_id GROUP BY recipes.id ORDER BY score desc")
+
+    # Build base query
+    query = f"""
+        SELECT recipes.id, title, slug, description, prep_time, cook_time,
+               COALESCE(SUM(recipe_votes.value), 0) AS score,
+               recipes.created_at
+        FROM recipes
+        LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id
+    """
+
+    params = []
+    where_clause = ""
+    if filter_q:
+        where_clause = "WHERE title LIKE ? OR description LIKE ?"
+        like_query = f"%{filter_q}%"
+        params.extend([like_query, like_query])
+
+    query += f" {where_clause} GROUP BY recipes.id"
+
+    if sort == "score":
+        query += " ORDER BY score DESC"
+    elif sort == "created_at":
+        query += " ORDER BY recipes.created_at DESC"
+    else:
+        query += " ORDER BY recipes.id DESC"
+
+    if limit:
+        query += f" LIMIT {limit}"
+
+    cursor.execute(query, params)
     recipes_raw = cursor.fetchall()
-    # Fetch categories for each recipe.
+
     recipes = []
     for row in recipes_raw:
         recipe = dict(row)
-        # Get tags (category names)
-        cursor.execute("SELECT name from recipe_categories JOIN categories ON recipe_categories.category_id = categories.id WHERE recipe_categories.recipe_id = ?", (row["id"],))
-        categories = [cat["name"] for cat in cursor.fetchall()]
-        recipe["tags"] = categories
+        cursor.execute("""
+            SELECT name FROM recipe_categories
+            JOIN categories ON recipe_categories.category_id = categories.id
+            WHERE recipe_categories.recipe_id = ?
+        """, (row["id"],))
+        recipe["tags"] = [cat["name"] for cat in cursor.fetchall()]
         recipes.append(recipe)
-    # Close and Return
+
     conn.close()
     return recipes
 
+
 def get_recipes_popular():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT recipes.id, title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id GROUP BY recipes.id ORDER BY score DESC")
-    recipes_raw = cursor.fetchall()
-    # Fetch categories for each recipe.
-    recipes_popular = []
-    for row in recipes_raw:
-        recipe = dict(row)
-        # Get tags (category names)
-        cursor.execute("SELECT name from recipe_categories JOIN categories ON recipe_categories.category_id = categories.id WHERE recipe_categories.recipe_id = ?", (row["id"],))
-        categories = [cat["name"] for cat in cursor.fetchall()]
-        recipe["tags"] = categories
-        recipes_popular.append(recipe)
-    # Close and Return
-    conn.close()
-    return recipes_popular
+    return get_recipes(sort="score", limit=10)
 
 def get_recipes_new():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT recipes.id, title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes on recipes.id = recipe_votes.recipe_id GROUP BY recipes.id ORDER BY score desc")
-    recipes_raw = cursor.fetchall()
-    # Fetch categories for each recipe.
-    recipes_new = []
-    for row in recipes_raw:
-        recipe = dict(row)
-        # Get tags (category names)
-        cursor.execute("SELECT name from recipe_categories JOIN categories ON recipe_categories.category_id = categories.id WHERE recipe_categories.recipe_id = ?", (row["id"],))
-        categories = [cat["name"] for cat in cursor.fetchall()]
-        recipe["tags"] = categories
-        recipes_new.append(recipe)
-    # Close and Return
-    conn.close()
-    return recipes_new
+    return get_recipes(sort="created_at", limit=10)
+
+def get_recipes_search(q):
+    return get_recipes(filter_q=q)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
