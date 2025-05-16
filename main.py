@@ -77,10 +77,20 @@ def get_recipes_new():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT title, slug, description, prep_time, cook_time FROM recipes ORDER BY id desc")
-    recipes_popular = cursor.fetchall()
+    cursor.execute("SELECT recipes.id, title, slug, description, prep_time, cook_time FROM recipes ORDER BY id desc")
+    recipes_raw = cursor.fetchall()
+    # Fetch categories for each recipe.
+    recipes_new = []
+    for row in recipes_raw:
+        recipe = dict(row)
+        # Get tags (category names)
+        cursor.execute("SELECT name from recipe_categories JOIN categories ON recipe_categories.category_id = categories.id WHERE recipe_categories.recipe_id = ?", (row["id"],))
+        categories = [cat["name"] for cat in cursor.fetchall()]
+        recipe["tags"] = categories
+        recipes_new.append(recipe)
+    # Close and Return
     conn.close()
-    return recipes_popular
+    return recipes_new
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
