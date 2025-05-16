@@ -53,21 +53,7 @@ def get_recipes_popular():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT
-            r.id,
-            r.title,
-            r.slug,
-            r.description,
-            r.prep_time,
-            r.cook_time,
-            COALESCE(SUM(rv.value), 0) AS score
-        FROM recipes r
-        LEFT JOIN recipe_votes rv ON r.id = rv.recipe_id
-        GROUP BY r.id
-        ORDER BY score DESC
-    ''')
+    cursor.execute("SELECT recipes.id, title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id GROUP BY recipes.id ORDER BY score DESC")
     recipes_raw = cursor.fetchall()
     # Fetch categories for each recipe.
     recipes_popular = []
