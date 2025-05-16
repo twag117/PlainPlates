@@ -1,0 +1,10 @@
+Requirements:
+- Keep screen on.
+- Scale recipes.
+- AI recipe submission formatting.
+- Favorites page
+- Individual Recipes page
+- Placeholder recipe image card.
+- Like/Dislike buttons.
+- Recipe image upload.
+----------

@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# Environment
+.env
+venv/
+
+# OS/IDE clutter
+.DS_Store
+*.log
+.vscode/
+
+# Test Stuff
+z_*.py
