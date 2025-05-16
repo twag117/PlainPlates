@@ -8,3 +8,5 @@ Requirements:
 - Like/Dislike buttons.
 - Recipe image upload.
 ----------
+To get into venv:
+.\venv\Scripts\Activate

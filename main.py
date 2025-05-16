@@ -30,7 +30,7 @@ def get_recipes(q):
     cursor = conn.cursor()
     if q:
         query = f"%{q}%"
-        cursor.execute("SELECT title, slug, description, prep_time, cook_time FROM recipes WHERE title LIKE ? OR description LIKE ? ORDER BY id desc", (query, query))
+        cursor.execute("SELECT title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id WHERE title LIKE ? OR description LIKE ? GROUP BY recipes.id ORDER BY score desc", (query, query))
     else:    
         cursor.execute("SELECT title, slug, description, prep_time, cook_time, COALESCE(SUM(value), 0) AS score FROM recipes LEFT JOIN recipe_votes on recipes.id = recipe_votes.recipe_id GROUP BY recipes.id ORDER BY score desc")
     recipes = cursor.fetchall()
