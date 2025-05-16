@@ -1,7 +1,0 @@
-<a href="/recipes/{{ recipe.slug }}" class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow p-4">
-    <div class="mb-3 h-36 overflow-hidden rounded">
-        <img src="/static/images/recipes{{ recipe.slug }}.jpg" onerror="this.onerror=null;this.src='https://placehold.co/400x300?text=PlainPlates';" alt="{{ recipe.title }}" class="w-full h-full object-cover">
-    </div>
-    <h3 class="font-bold mb-1">{{ recipe.title }}</h3>
-    <p class="text-xs text-gray-500">{{ recipe.prep_time + recipe.cook_time }} min{% if recipe.category %} • {{ recipe.category }}{% endif %}</p>
-</a>
