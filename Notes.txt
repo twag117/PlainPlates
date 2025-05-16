@@ -10,3 +10,5 @@ Requirements:
 ----------
 To get into venv:
 .\venv\Scripts\Activate
+To run server:
+uvicorn main:app --reload
