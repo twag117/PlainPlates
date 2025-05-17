@@ -24,7 +24,7 @@ def get_categories():
     conn.close()
     return categories
 
-def get_recipes(filter_q=None, sort="score", limit=None):
+def get_recipes(filter_q=None, sort="score", limit=None, category_slug=None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -39,11 +39,25 @@ def get_recipes(filter_q=None, sort="score", limit=None):
     """
 
     params = []
-    where_clause = ""
+    where_clauses = []
+
     if filter_q:
-        where_clause = "WHERE title LIKE ? OR description LIKE ?"
-        like_query = f"%{filter_q}%"
-        params.extend([like_query, like_query])
+        like = f"%{filter_q}%"
+        where_clauses.append("(title LIKE ? OR description LIKE ?)")
+        params.extend([like, like])
+
+    if category_slug:
+        where_clauses.append("""
+            recipes.id IN (
+                SELECT recipe_id FROM recipe_categories
+                JOIN categories ON categories.id = recipe_categories.category_id
+                WHERE categories.slug = ?
+            )
+        """)
+        params.append(category_slug)
+
+    # Combine into a full WHERE clause if needed
+    where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
     query += f" {where_clause} GROUP BY recipes.id"
 
@@ -138,12 +152,13 @@ def whoami(request: Request):
         return {"logged_in": False}
 
 @app.get("/recipes", response_class=HTMLResponse)
-def recipes_page(request: Request, q: str | None = None):
+def recipes_page(request: Request, q: str | None = None, category: str | None = None):
     categories = get_categories()
     recipes = get_recipes(q)
     return templates.TemplateResponse("recipes.html", {
         "request": request,
         "categories": categories,
         "recipes": recipes,
-        "q": q
+        "q": q,
+        "selected_category": category
     })
