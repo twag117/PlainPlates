@@ -28,6 +28,14 @@
     </div>
     {% endif %}
 
+    <div class="flex items-center gap-2 mb-6">
+        <input type="checkbox" id="keep-awake" class="w-4 h-4">
+        <label for="keep-awake" class="text-sm text-gray-600">
+        Keep screen awake while viewing this recipe
+        </label>
+    </div>
+
+
     <h2 class="text-xl font-semibold mb-2">Ingredients</h2>
     <pre class="bg-gray-50 p-4 rounded text-sm whitespace-pre-wrap mb-6">{{ recipe.ingredients }}</pre>
 
@@ -39,4 +47,38 @@
     <pre class="bg-gray-50 p-4 rounded text-sm whitespace-pre-wrap">{{ recipe.notes }}</pre>
     {% endif %}
 </section>
+
+<script>
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    console.log('🔓 Wake lock is active');
+  } catch (err) {
+    console.error('Wake lock error:', err);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock !== null) {
+    wakeLock.release().then(() => {
+      console.log('🔒 Wake lock released');
+      wakeLock = null;
+    });
+  }
+}
+
+document.getElementById('keep-awake').addEventListener('change', (e) => {
+  if ('wakeLock' in navigator) {
+    if (e.target.checked) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+  } else {
+    alert('Your device does not support screen wake lock.');
+  }
+});
+</script>
 {% endblock %}
