@@ -9,12 +9,17 @@
     </a>
 
     <h1 class="text-3xl font-bold mb-2">{{ recipe.title }}</h1>
-    <form method="post" action="/favorites/{{ recipe.id }}">
+    <form method="post" action="/favorites/{{ recipe.id }}" class="mb-4">
         <button type="submit"
             class="text-sm text-primary-600 hover:underline">
-            ❤️ Add to Favorites
+            {% if is_favorited %}
+                💔 Remove from Favorites
+            {% else %}
+                ❤️ Add to Favorites
+            {% endif %}
         </button>
     </form>
+
 
     <p class="text-gray-600 mb-4">{{ recipe.description }}</p>
 

@@ -201,11 +201,24 @@ def recipe_detail(slug: str, request: Request):
     ''', (row["id"],))
     recipe["tags"] = [cat["name"] for cat in cursor.fetchall()]
 
+    # Check if this recipe is in user's favorites
+    user = request.session.get("user")
+    is_favorited = False
+
+    if user:
+        cursor.execute("""
+            SELECT 1 FROM user_favorites
+            WHERE user_id = ? AND recipe_id = ?
+        """, (user["id"], recipe["id"]))
+        is_favorited = cursor.fetchone() is not None
+
+
     conn.close()
 
     return templates.TemplateResponse("recipe_detail.html", {
         "request": request,
-        "recipe": recipe
+        "recipe": recipe,
+        "is_favorited": is_favorited
     })
 
 @app.get("/favorites", response_class=HTMLResponse)
