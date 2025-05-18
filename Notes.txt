@@ -1,12 +1,11 @@
 Requirements:
 - Keep screen on.
-- Scale recipes.
+- Scale recipes (2x, 4x, etc.).
 - AI recipe submission formatting.
 - Favorites page
 - Individual Recipes page
-- Placeholder recipe image card.
 - Like/Dislike buttons.
-- Recipe image upload.
+- Recipe image upload. (Imgur API)
 ----------
 To get into venv:
 .\venv\Scripts\Activate

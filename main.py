@@ -162,3 +162,39 @@ def recipes_page(request: Request, q: str | None = None, category: str | None = 
         "q": q,
         "selected_category": category
     })
+
+@app.get("/recipes/{slug}", response_class=HTMLResponse)
+def recipe_detail(slug: str, request: Request):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT recipes.id, title, slug, description, ingredients, instructions, notes,
+               prep_time, cook_time, COALESCE(SUM(recipe_votes.value), 0) as score
+        FROM recipes
+        LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id
+        WHERE slug = ?
+        GROUP BY recipes.id
+    ''', (slug,))
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+    recipe = dict(row)
+
+    cursor.execute('''
+        SELECT name FROM recipe_categories
+        JOIN categories ON recipe_categories.category_id = categories.id
+        WHERE recipe_categories.recipe_id = ?
+    ''', (row["id"],))
+    recipe["tags"] = [cat["name"] for cat in cursor.fetchall()]
+
+    conn.close()
+
+    return templates.TemplateResponse("recipe_detail.html", {
+        "request": request,
+        "recipe": recipe
+    })
