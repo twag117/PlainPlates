@@ -1,9 +1,7 @@
 Requirements:
-- Keep screen on.
 - Scale recipes (2x, 4x, etc.).
 - AI recipe submission formatting.
 - Favorites page
-- Individual Recipes page
 - Like/Dislike buttons.
 - Recipe image upload. (Imgur API)
 ----------
