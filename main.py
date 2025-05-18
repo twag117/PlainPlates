@@ -98,6 +98,15 @@ def get_recipes_new():
 def get_recipes_search(q):
     return get_recipes(filter_q=q)
 
+def get_recipe_slug_by_id(recipe_id):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT slug FROM recipes WHERE id = ?", (recipe_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row["slug"] if row else ""
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -225,7 +234,7 @@ def favorites_page(request: Request):
         cursor.execute('''
             SELECT name FROM recipe_categories
             JOIN categories ON recipe_categories.category_id = categories.id
-            WHERE recipe_categories.recipe.id = ?
+            WHERE recipe_categories.recipe_id = ?
         ''', (recipe["id"],))
         recipe["tags"] = [cat["name"] for cat in cursor.fetchall()]
         recipes.append(recipe)
@@ -240,3 +249,36 @@ def favorites_page(request: Request):
         "q": None,
         "selected_category": None
     })
+
+@app.post("/favorites/{recipe_id}")
+def toggle_favorite(recipe_id: int, request: Request):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Check if already favorited
+    cursor.execute("""
+        SELECT 1 FROM user_favorites
+        WHERE user_id = ? AND recipe_id = ?
+    """, (user["id"], recipe_id))
+
+    if cursor.fetchone():
+        # Remove from favorites
+        cursor.execute("""
+            DELETE FROM user_favorites
+            WHERE user_id = ? AND recipe_id = ?
+        """, (user["id"], recipe_id))
+    else:
+        # Add to favorites
+        cursor.execute("""
+            INSERT INTO user_favorites (user_id, recipe_id)
+            VALUES (?, ?)
+        """, (user["id"], recipe_id))
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(f"/recipes/{get_recipe_slug_by_id(recipe_id)}", status_code=303)

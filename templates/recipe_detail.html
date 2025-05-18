@@ -9,6 +9,13 @@
     </a>
 
     <h1 class="text-3xl font-bold mb-2">{{ recipe.title }}</h1>
+    <form method="post" action="/favorites/{{ recipe.id }}">
+        <button type="submit"
+            class="text-sm text-primary-600 hover:underline">
+            ❤️ Add to Favorites
+        </button>
+    </form>
+
     <p class="text-gray-600 mb-4">{{ recipe.description }}</p>
 
     <div class="mb-6 rounded overflow-hidden">
@@ -17,8 +24,6 @@
             alt="{{ recipe.title }}"
             class="w-full h-64 object-cover rounded">
     </div>
-
-
 
     <div class="flex items-center justify-between text-sm text-gray-500 mb-6">
         <span>Total Time: {{ recipe.prep_time + recipe.cook_time }} min</span>
