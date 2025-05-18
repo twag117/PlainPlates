@@ -195,6 +195,18 @@ def recipe_detail(slug: str, request: Request):
 
     recipe = dict(row)
 
+    # Determine user's current vote
+    vote = 0
+    identifier = str(user["id"]) if user else request.client.host
+    cursor.execute("""
+        SELECT value FROM recipe_votes
+        WHERE recipe_id = ? AND identifier = ?
+    """, (recipe["id"], identifier))
+    vote_row = cursor.fetchone()
+    if vote_row:
+        vote = vote_row["value"]
+
+
     cursor.execute('''
         SELECT name FROM recipe_categories
         JOIN categories ON recipe_categories.category_id = categories.id
@@ -219,7 +231,8 @@ def recipe_detail(slug: str, request: Request):
     return templates.TemplateResponse("recipe_detail.html", {
         "request": request,
         "recipe": recipe,
-        "is_favorited": is_favorited
+        "is_favorited": is_favorited,
+        "vote": vote
     })
 
 @app.get("/favorites", response_class=HTMLResponse)
@@ -303,3 +316,34 @@ def submit_page(request: Request):
     if not user:
         return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse("submit.html", {"request": request})
+
+@app.post("/recipes/{recipe_id}/vote")
+def vote_on_recipe(recipe_id: int, request: Request, value: int):
+    user = request.session.get("user")
+    identifier = str(user["id"]) if user else request.client.host  # fallback to IP
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Check existing vote
+    cursor.execute("""
+        SELECT value FROM recipe_votes
+        WHERE recipe_id = ? AND identifier = ?
+    """, (recipe_id, identifier))
+    row = cursor.fetchone()
+
+    if row:
+        if row["value"] == value:
+            # Un-vote (toggle off)
+            cursor.execute("DELETE FROM recipe_votes WHERE recipe_id = ? AND identifier = ?", (recipe_id, identifier))
+        else:
+            # Update existing vote
+            cursor.execute("UPDATE recipe_votes SET value = ? WHERE recipe_id = ? AND identifier = ?", (value, recipe_id, identifier))
+    else:
+        # New vote
+        cursor.execute("INSERT INTO recipe_votes (recipe_id, identifier, value) VALUES (?, ?, ?)", (recipe_id, identifier, value))
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(f"/recipes/{get_recipe_slug_by_id(recipe_id)}", status_code=303)
