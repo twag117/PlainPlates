@@ -32,8 +32,30 @@
 
     <div class="flex items-center justify-between text-sm text-gray-500 mb-6">
         <span>Total Time: {{ recipe.prep_time + recipe.cook_time }} min</span>
-        <span>Score: {% if recipe.score > 0 %}🔥{% else %}🧊{% endif %} {{ recipe.score }}</span>
-    </div>
+        <!-- <span>Score: {% if recipe.score > 0 %}🔥{% else %}🧊{% endif %} {{ recipe.score }}</span> -->
+    
+
+<div class="flex items-center gap-4 mb-6">
+  <form method="post" action="/recipes/{{ recipe.id }}/vote">
+    <input type="hidden" name="value" value="1">
+    <button type="submit"
+            class="flex items-center gap-1 text-sm px-2 py-1 rounded
+                   {% if vote == 1 %}bg-green-100 text-green-700{% else %}text-gray-600 hover:text-green-600{% endif %}">
+      👍 {{ recipe.score }}
+    </button>
+  </form>
+
+  <form method="post" action="/recipes/{{ recipe.id }}/vote">
+    <input type="hidden" name="value" value="-1">
+    <button type="submit"
+            class="text-sm px-2 py-1 rounded
+                   {% if vote == -1 %}bg-red-100 text-red-600{% else %}text-gray-600 hover:text-red-600{% endif %}">
+      👎
+    </button>
+  </form>
+</div>
+</div>
+
 
     {% if recipe.tags %}
     <div class="flex flex-wrap gap-2 mb-6">

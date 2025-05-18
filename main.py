@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pathlib import Path
@@ -175,6 +175,7 @@ def recipes_page(request: Request, q: str | None = None, category: str | None = 
 
 @app.get("/recipes/{slug}", response_class=HTMLResponse)
 def recipe_detail(slug: str, request: Request):
+    user = request.session.get("user")
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -197,25 +198,22 @@ def recipe_detail(slug: str, request: Request):
 
     # Determine user's current vote
     vote = 0
-    identifier = str(user["id"]) if user else request.client.host
+    identifier = user["email"] if user else f"anon-{request.client.host}"
     cursor.execute("""
         SELECT value FROM recipe_votes
         WHERE recipe_id = ? AND identifier = ?
     """, (recipe["id"], identifier))
     vote_row = cursor.fetchone()
-    if vote_row:
-        vote = vote_row["value"]
-
+    vote = int(vote_row[0] / abs(vote_row[0])) if vote_row else 0
 
     cursor.execute('''
         SELECT name FROM recipe_categories
         JOIN categories ON recipe_categories.category_id = categories.id
         WHERE recipe_categories.recipe_id = ?
-    ''', (row["id"],))
+    ''', (recipe["id"],))
     recipe["tags"] = [cat["name"] for cat in cursor.fetchall()]
 
     # Check if this recipe is in user's favorites
-    user = request.session.get("user")
     is_favorited = False
 
     if user:
@@ -318,9 +316,13 @@ def submit_page(request: Request):
     return templates.TemplateResponse("submit.html", {"request": request})
 
 @app.post("/recipes/{recipe_id}/vote")
-def vote_on_recipe(recipe_id: int, request: Request, value: int):
+def vote_on_recipe(recipe_id: int, request: Request, value: int = Form(...)):
     user = request.session.get("user")
-    identifier = str(user["id"]) if user else request.client.host  # fallback to IP
+    identifier = user["email"] if user else f"anon-{request.client.host}"
+
+    # Apply vote weighting
+    weight = 5 if user else 1
+    weighted_value = value * weight
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -333,15 +335,25 @@ def vote_on_recipe(recipe_id: int, request: Request, value: int):
     row = cursor.fetchone()
 
     if row:
-        if row["value"] == value:
+        if row[0] == weighted_value:
             # Un-vote (toggle off)
-            cursor.execute("DELETE FROM recipe_votes WHERE recipe_id = ? AND identifier = ?", (recipe_id, identifier))
+            cursor.execute("""
+                DELETE FROM recipe_votes
+                WHERE recipe_id = ? AND identifier = ?
+            """, (recipe_id, identifier))
         else:
-            # Update existing vote
-            cursor.execute("UPDATE recipe_votes SET value = ? WHERE recipe_id = ? AND identifier = ?", (value, recipe_id, identifier))
+            # Update vote
+            cursor.execute("""
+                UPDATE recipe_votes
+                SET value = ?
+                WHERE recipe_id = ? AND identifier = ?
+            """, (weighted_value, recipe_id, identifier))
     else:
         # New vote
-        cursor.execute("INSERT INTO recipe_votes (recipe_id, identifier, value) VALUES (?, ?, ?)", (recipe_id, identifier, value))
+        cursor.execute("""
+            INSERT INTO recipe_votes (recipe_id, identifier, value)
+            VALUES (?, ?, ?)
+        """, (recipe_id, identifier, weighted_value))
 
     conn.commit()
     conn.close()
