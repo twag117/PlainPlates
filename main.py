@@ -150,7 +150,8 @@ async def auth_google_callback(request: Request):
 @app.get("/logout")
 def logout(request: Request):
     request.session.pop("user", None)
-    return RedirectResponse("/login")
+    referer = request.headers.get("referer")
+    return RedirectResponse(referer or "/", status_code=303)
 
 @app.get("/whoami")
 def whoami(request: Request):
