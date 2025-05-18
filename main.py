@@ -281,6 +281,7 @@ def toggle_favorite(recipe_id: int, request: Request):
     if not user:
         return RedirectResponse("/login", status_code=302)
 
+    identifier = user["email"]
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -289,24 +290,37 @@ def toggle_favorite(recipe_id: int, request: Request):
         SELECT 1 FROM user_favorites
         WHERE user_id = ? AND recipe_id = ?
     """, (user["id"], recipe_id))
+    is_favorited = cursor.fetchone() is not None
 
-    if cursor.fetchone():
-        # Remove from favorites
+    if is_favorited:
+        # Unfavorite and remove any upvote
         cursor.execute("""
             DELETE FROM user_favorites
             WHERE user_id = ? AND recipe_id = ?
         """, (user["id"], recipe_id))
+
+        cursor.execute("""
+            DELETE FROM recipe_votes
+            WHERE recipe_id = ? AND identifier = ? AND value > 0
+        """, (recipe_id, identifier))
+
     else:
-        # Add to favorites
+        # Favorite and auto-upvote
         cursor.execute("""
             INSERT INTO user_favorites (user_id, recipe_id)
             VALUES (?, ?)
         """, (user["id"], recipe_id))
 
+        cursor.execute("""
+            INSERT OR REPLACE INTO recipe_votes (recipe_id, identifier, value)
+            VALUES (?, ?, ?)
+        """, (recipe_id, identifier, 5))
+
     conn.commit()
     conn.close()
 
     return RedirectResponse(f"/recipes/{get_recipe_slug_by_id(recipe_id)}", status_code=303)
+
 
 @app.get("/submit", response_class=HTMLResponse)
 def submit_page(request: Request):
