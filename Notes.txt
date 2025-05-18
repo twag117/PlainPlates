@@ -1,14 +1,19 @@
 Requirements:
+- Voting UI / logic
 - Scale recipes (2x, 4x, etc.).
 - Button to "shop" ingridients, with walmart or whatever
 - Build submission logic
 - AI recipe submission formatting.
+- When submitting a recipe automatically favorite/like it
+- When favoriting a recipe, also like it. When unfavoriting, remove like.
+- Allow users to delete their own submitted recipes
 - Like/Dislike buttons.
 - Recipe image upload. (Imgur API)
 - Logic so if a user goes to my favorites, after they login, they get redirected to my favorites.
 - Same as above, but with favoriting an item.
 - Same as above, except with submitting a recipe.
 - If navigating from MyFavorites recipe, then "back to all recipes" should be swapped to return to My Favorites
+- Add healthy as a category
 ----------
 To get into venv:
 .\venv\Scripts\Activate
