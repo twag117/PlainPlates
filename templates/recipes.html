@@ -29,11 +29,28 @@
             <!-- Category Pills -->
             <div class="flex flex-wrap justify-center gap-2 mb-4">
                 {% for category in categories %}
-                <a href="/recipes?category={{ category.slug }}{% if q %}&q={{ q }}{% endif %}" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-full text-sm">
+                <a href="/recipes?category={{ category.slug }}{% if q %}&q={{ q }}{% endif %}"
+                class="{% if selected_category == category.slug %}
+                            bg-primary-500 text-white
+                        {% else %}
+                            bg-gray-100 text-gray-800 hover:bg-gray-200
+                        {% endif %}
+                        px-4 py-2 rounded-full text-sm transition">
                     {{ category.name }}
                 </a>
                 {% endfor %}
             </div>
+
+            {% if q or selected_category %}
+            <div class="-mb-6 text-center">
+                <a href="/recipes"
+                class="inline-block text-sm text-gray-600 hover:text-primary-600 underline">
+                Reset Filters
+                </a>
+            </div>
+            {% endif %}
+
+
         </div>
     </div>
 </section>
