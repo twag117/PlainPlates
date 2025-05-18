@@ -210,7 +210,7 @@ def favorites_page(request: Request):
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT recipes.id, recipes.title, recipes.slug, recipes.description, recipes.prep_time, recipes.cook_time, COALESCE(SUM(recipes_votes.value), 0) AS score, recipes.created_at
+        SELECT recipes.id, recipes.title, recipes.slug, recipes.description, recipes.prep_time, recipes.cook_time, COALESCE(SUM(recipe_votes.value), 0) as score, recipes.created_at
         FROM user_favorites
         JOIN recipes on user_favorites.recipe_id = recipes.id
         LEFT JOIN recipe_votes on recipes.id = recipe_votes.recipe_id
