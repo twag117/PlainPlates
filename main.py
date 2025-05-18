@@ -198,3 +198,45 @@ def recipe_detail(slug: str, request: Request):
         "request": request,
         "recipe": recipe
     })
+
+@app.get("/favorites", response_class=HTMLResponse)
+def favorites_page(request: Request):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT recipes.id, recipes.title, recipes.slug, recipes.description, recipes.prep_time, recipes.cook_time, COALESCE(SUM(recipes_votes.value), 0) AS score, recipes.created_at
+        FROM user_favorites
+        JOIN recipes on user_favorites.recipe_id = recipes.id
+        LEFT JOIN recipe_votes on recipes.id = recipe_votes.recipe_id
+        WHERE user_favorites.user_id = ?
+        GROUP BY recipes.id
+        ORDER BY recipes.created_at DESC
+    ''', (user["id"],))
+
+    recipes = []
+    for row in cursor.fetchall():
+        recipe = dict(row)
+        cursor.execute('''
+            SELECT name FROM recipe_categories
+            JOIN categories ON recipe_categories.category_id = categories.id
+            WHERE recipe_categories.recipe.id = ?
+        ''', (recipe["id"],))
+        recipe["tags"] = [cat["name"] for cat in cursor.fetchall()]
+        recipes.append(recipe)
+    
+    conn.close()
+
+    categories = get_categories()
+    return templates.TemplateResponse("favorites.html", {
+        "request": request,
+        "recipes": recipes,
+        "categories": categories,
+        "q": None,
+        "selected_category": None
+    })
