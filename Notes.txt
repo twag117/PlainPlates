@@ -1,7 +1,7 @@
 Requirements:
 - Scale recipes (2x, 4x, etc.).
+- Build submission logic
 - AI recipe submission formatting.
-- Favorites page
 - Like/Dislike buttons.
 - Recipe image upload. (Imgur API)
 - Logic so if a user goes to my favorites, after they login, they get redirected to my favorites.

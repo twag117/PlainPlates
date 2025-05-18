@@ -295,3 +295,10 @@ def toggle_favorite(recipe_id: int, request: Request):
     conn.close()
 
     return RedirectResponse(f"/recipes/{get_recipe_slug_by_id(recipe_id)}", status_code=303)
+
+@app.get("/submit", response_class=HTMLResponse)
+def submit_page(request: Request):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse("submit.html", {"request": request})
