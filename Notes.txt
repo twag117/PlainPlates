@@ -1,5 +1,6 @@
 Requirements:
 - Scale recipes (2x, 4x, etc.).
+- Button to "shop" ingridients, with walmart or whatever
 - Build submission logic
 - AI recipe submission formatting.
 - Like/Dislike buttons.
