@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}My Favorites{% endblock %}
+
+{% block content %}
+<section class="bg-white border-b">
+    <div class="max-w-6xl mx-auto px-4 py-12 md:py-16 text-center">
+        <h1 class="text-3xl md:text-4xl font-bold mb-2">My Favorite Recipes</h1>
+        <p class="text-gray-600 mb-6">All the recipes you've saved and loved.</p>
+    </div>
+</section>
+
+<section class="py-12">
+    <div class="max-w-6xl mx-auto px-4">
+    {% if recipes %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for recipe in recipes %}
+            {   % include "components/recipe_card.html" %}
+            {% endfor %}
+        </div>
+        {% else %}
+            <p class="text-center text-gray-500">You haven't favorited any recipes yet.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
