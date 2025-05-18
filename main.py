@@ -47,13 +47,13 @@ def get_recipes(filter_q=None, sort="score", limit=None, category_slug=None):
         params.extend([like, like])
 
     if category_slug:
-        where_clauses.append("""
+        where_clauses.append('''
             recipes.id IN (
                 SELECT recipe_id FROM recipe_categories
                 JOIN categories ON categories.id = recipe_categories.category_id
                 WHERE categories.slug = ?
             )
-        """)
+        ''')
         params.append(category_slug)
 
     # Combine into a full WHERE clause if needed
@@ -154,7 +154,7 @@ def whoami(request: Request):
 @app.get("/recipes", response_class=HTMLResponse)
 def recipes_page(request: Request, q: str | None = None, category: str | None = None):
     categories = get_categories()
-    recipes = get_recipes(q)
+    recipes = get_recipes(filter_q=q, category_slug=category)
     return templates.TemplateResponse("recipes.html", {
         "request": request,
         "categories": categories,
