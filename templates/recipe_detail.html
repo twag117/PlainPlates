@@ -21,7 +21,7 @@
 			</button>
 		</form>
 
-		{% if request.session.user and request.session.user.id == recipe.user_id %}
+		{% if request.session.user and (request.session.user.id == recipe.user_id or request.session.user.id == 1) %}
 			<div class="text-right mb-4">
 				<a href="/recipes/{{ recipe.slug }}/edit"
 					class="text-sm text-primary-600 hover:underline font-medium">

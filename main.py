@@ -560,7 +560,7 @@ def update_recipe(slug: str, request: Request,
 
     cursor.execute("SELECT user_id FROM recipes WHERE slug = ?", (slug,))
     row = cursor.fetchone()
-    if not row or row["user_id"] != user["id"]:
+    if not row or (row["user_id"] != user["id"] and user["id"] != 1):
         conn.close()
         return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
 
