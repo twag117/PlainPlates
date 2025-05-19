@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from auth import oauth, create_or_update_user
 from mistralai import Mistral
 from better_profanity import profanity
+from typing import List
 import sqlite3
 import os
 import json
@@ -15,6 +16,10 @@ import re
 
 load_dotenv()
 profanity.load_censor_words()
+for word in ["pot", "chili", "corn"]:
+    if word in profanity.CENSOR_WORDSET:
+        profanity.CENSOR_WORDSET.remove(word)
+
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
@@ -502,15 +507,26 @@ def edit_recipe_page(slug: str, request: Request):
 
     cursor.execute("SELECT * FROM recipes WHERE slug = ?", (slug,))
     recipe = cursor.fetchone()
-    if not recipe or recipe["user_id"] != user["id"]:
+    if not recipe or (recipe["user_id"] != user["id"] and user["id"] != 1):
         conn.close()
         return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+    # Now that we have recipe["id"], we can load categories
+    cursor.execute("SELECT category_id FROM recipe_categories WHERE recipe_id = ?", (recipe["id"],))
+    selected_category_ids = {row["category_id"] for row in cursor.fetchall()}
+
+    cursor.execute("SELECT id, name FROM categories ORDER BY name")
+    categories = cursor.fetchall()
 
     conn.close()
     return templates.TemplateResponse("edit_recipe.html", {
         "request": request,
-        "recipe": dict(recipe)
+        "recipe": dict(recipe),
+        "categories": categories,
+        "selected_category_ids": selected_category_ids
     })
+
+
 
 @app.post("/recipes/{slug}/edit")
 def update_recipe(slug: str, request: Request,
@@ -521,7 +537,8 @@ def update_recipe(slug: str, request: Request,
                   notes: str = Form(""),
                   prep_time: int = Form(...),
                   cook_time: int = Form(...),
-                  servings: int = Form(...)):
+                  servings: int = Form(...),
+                  categories: List[int] = Form(...)):
 
     import re
     from better_profanity import profanity
@@ -530,7 +547,7 @@ def update_recipe(slug: str, request: Request,
     if not user:
         return RedirectResponse("/login", status_code=302)
 
-    # Basic format checks
+    # Basic validation
     bad_ingredients = any(not line.strip().startswith("- ") for line in ingredients.strip().splitlines())
 
     lines = [line.strip() for line in instructions.strip().splitlines()]
@@ -543,11 +560,33 @@ def update_recipe(slug: str, request: Request,
             break
         expected += 1
 
-    # Profanity check
-    text_fields = [title, description, ingredients, instructions, notes]
-    bad_language = any(profanity.contains_profanity(field) for field in text_fields)
+    bad_language = any("*" in profanity.censor(field)
+                   for field in [title, description, ingredients, instructions, notes])
 
-    if bad_ingredients or bad_instructions or bad_language:
+    for field_name, field_value in {
+        "title": title,
+        "description": description,
+        "ingredients": ingredients,
+        "instructions": instructions,
+        "notes": notes
+    }.items():
+        censored = profanity.censor(field_value)
+        if "*" in censored:
+            print(f"⚠️ Profanity detected in '{field_name}':")
+            print(f"Original: {field_value}")
+            print(f"Censored: {censored}")
+
+
+
+    if bad_ingredients or bad_instructions or bad_language or not categories:
+        # Reload categories
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM categories ORDER BY name")
+        all_categories = cursor.fetchall()
+        conn.close()
+
         return templates.TemplateResponse("edit_recipe.html", {
             "request": request,
             "recipe": {
@@ -561,14 +600,18 @@ def update_recipe(slug: str, request: Request,
                 "cook_time": cook_time,
                 "servings": servings
             },
+            "categories": all_categories,
+            "selected_category_ids": set(map(int, categories)),
             "error": (
                 "Please fix formatting: "
                 + ("ingredients must start with '- '" if bad_ingredients else "")
                 + (" | instructions must be numbered/ordered" if bad_instructions else "")
                 + (" | inappropriate language found" if bad_language else "")
+                + (" | select at least one category" if not categories else "")
             )
         })
 
+    # Update in DB
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -581,8 +624,9 @@ def update_recipe(slug: str, request: Request,
 
     old_title = row["title"]
     old_slug = row["slug"]
+    recipe_id = row["id"]
 
-    # If title changed, regenerate slug
+    # Regenerate slug if title changed
     new_slug = old_slug
     if title.strip() != old_title.strip():
         base_slug = re.sub(r"[^a-z0-9\-]+", "-", title.lower().strip().replace(" ", "-")).strip("-")
@@ -599,9 +643,14 @@ def update_recipe(slug: str, request: Request,
     """, (title, new_slug, description, ingredients, instructions, notes,
           prep_time, cook_time, servings, old_slug))
 
+    # Update recipe categories
+    cursor.execute("DELETE FROM recipe_categories WHERE recipe_id = ?", (recipe_id,))
+    cursor.executemany(
+        "INSERT INTO recipe_categories (recipe_id, category_id) VALUES (?, ?)",
+        [(recipe_id, cat_id) for cat_id in categories]
+    )
+
     conn.commit()
     conn.close()
 
-    return RedirectResponse(f"/recipes/{new_slug}", status_code=303)
-
-
+    return RedirectResponse(f"/recipes/{new_slug}/edit", status_code=303)
