@@ -10,6 +10,7 @@ Requirements:
 - Same as above, but with favoriting an item.
 - Same as above, except with submitting a recipe.
 - If navigating from MyFavorites recipe, then "back to all recipes" should be swapped to return to My Favorites
+- Clean up with AI button on edit form.
 ----------
 To get into venv:
 .\venv\Scripts\Activate

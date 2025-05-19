@@ -6,12 +6,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 from auth import oauth, create_or_update_user
 from mistralai import Mistral
+from better_profanity import profanity
 import sqlite3
 import os
 import uuid
 import re
 
 load_dotenv()
+profanity.load_censor_words()
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
@@ -391,21 +393,24 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
     messages = [
         {
             "role": "user",
-            "content": """You are a recipe parser. Respond ONLY with valid JSON in this format (preserve newlines and list formatting):
+            "content": """You are a recipe parser and content cleaner. 
+                Make sure output is safe, appropriate, and well-formatted. 
+                Filter out any offensive language (slurs, cursing, hate speech). 
+                Respond ONLY with valid JSON in this format (preserve newlines and list formatting):
 
-    {
-    "title": "...",
-    "description": "...",
-    "ingredients": "- item 1\\n- item 2\\n- item 3",
-    "instructions": "1. Step one\\n2. Step two\\n3. Step three",
-    "notes": "...",      // optional
-    "prep_time": 10,
-    "cook_time": 20,
-    "servings": 4
-    }
+                {
+                "title": "...",
+                "description": "...",
+                "ingredients": "- item 1\\n- item 2\\n- item 3",
+                "instructions": "1. Step one\\n2. Step two\\n3. Step three",
+                "notes": "...",      // optional
+                "prep_time": 10,
+                "cook_time": 20,
+                "servings": 4
+                }
 
-    Input recipe (unstructured):
-    """ + raw
+                Input recipe (unstructured):
+                """ + raw
         }
     ]
 
@@ -504,9 +509,50 @@ def update_recipe(slug: str, request: Request,
                   prep_time: int = Form(...),
                   cook_time: int = Form(...),
                   servings: int = Form(...)):
+
     user = request.session.get("user")
     if not user:
         return RedirectResponse("/login", status_code=302)
+
+    # Basic format checks
+    bad_ingredients = any(not line.strip().startswith("- ") for line in ingredients.strip().splitlines())
+    lines = [line.strip() for line in instructions.strip().splitlines()]
+    expected = 1
+    bad_instructions = False
+
+    for line in lines:
+        match = re.match(r"^(\d+)\.\s", line)
+        if not match or int(match.group(1)) != expected:
+            bad_instructions = True
+            break
+        expected += 1
+
+    # Check for profanity in any text field
+    text_fields = [title, description, ingredients, instructions, notes]
+    bad_language = any(profanity.contains_profanity(field) for field in text_fields)
+
+    # If validation fails, re-render the form with an error
+    if bad_ingredients or bad_instructions or bad_language:
+        return templates.TemplateResponse("edit_recipe.html", {
+            "request": request,
+            "recipe": {
+                "slug": slug,
+                "title": title,
+                "description": description,
+                "ingredients": ingredients,
+                "instructions": instructions,
+                "notes": notes,
+                "prep_time": prep_time,
+                "cook_time": cook_time,
+                "servings": servings
+            },
+            "error": (
+                "Please fix formatting: "
+                + ("ingredients must start with '- '" if bad_ingredients else "")
+                + (" | instructions must be numbered/ordered" if bad_instructions else "")
+                + (" | inappropriate language found" if bad_language else "")
+            )
+        })
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -528,4 +574,5 @@ def update_recipe(slug: str, request: Request,
     conn.commit()
     conn.close()
 
-    return RedirectResponse(f"/recipes/{slug}", status_code=303)
+    return RedirectResponse(f"/recipes/{slug}/edit", status_code=303)
+

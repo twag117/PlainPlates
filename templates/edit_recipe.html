@@ -5,6 +5,13 @@
 <section class="max-w-2xl mx-auto px-4 py-12">
     <h1 class="text-3xl font-bold mb-6 text-center">Edit Your Recipe</h1>
 
+    {% if error %}
+        <div class="mb-4 p-3 rounded bg-red-100 text-red-800 border border-red-300 text-sm">
+        {{ error }}
+        </div>
+    {% endif %}
+
+
     <form method="post" action="/recipes/{{ recipe.slug }}/edit" class="space-y-6">
 
         <div>
