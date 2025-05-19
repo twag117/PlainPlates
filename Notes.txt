@@ -24,6 +24,6 @@ Plan:
     - FastAPI
     - SQLite3
     - SQLAlchemy
-- Re-build the app
+- Re-build the app (no design to start, just simple functionality)
 - Launch the app
 - Start adding recipes and uploading photos

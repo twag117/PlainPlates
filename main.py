@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from auth import oauth, create_or_update_user
 import sqlite3
 import os
+import uuid
 
 load_dotenv()
 
@@ -329,6 +330,7 @@ def submit_page(request: Request):
         return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse("submit.html", {"request": request})
 
+
 @app.post("/recipes/{recipe_id}/vote")
 def vote_on_recipe(recipe_id: int, request: Request, value: int = Form(...)):
     user = request.session.get("user")
@@ -373,3 +375,39 @@ def vote_on_recipe(recipe_id: int, request: Request, value: int = Form(...)):
     conn.close()
 
     return RedirectResponse(f"/recipes/{get_recipe_slug_by_id(recipe_id)}", status_code=303)
+
+
+@app.post("/submit")
+def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...)):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    # TODO: run `raw` through Mistral to extract recipe data
+    # For now, simulate with dummy values
+
+    # Placeholder values (to be replaced by AI result)
+    slug = title.lower().strip().replace(" ", "-") or "recipe-" + str(uuid.uuid4())[:8]
+    description = "AI-parsed description (placeholder)"
+    ingredients = "1 cup placeholder\n2 tsp placeholder"
+    instructions = "1. Do this\n2. Then that"
+    notes = "Optional notes"
+    prep_time = 10
+    cook_time = 15
+    servings = 4
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO recipes (title, slug, description, ingredients, instructions, notes,
+                             prep_time, cook_time, servings, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (title or slug, slug, description, ingredients, instructions, notes,
+          prep_time, cook_time, servings, user["id"]))
+
+    recipe_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(f"/recipes/{slug}", status_code=303)
