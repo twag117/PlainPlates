@@ -9,6 +9,7 @@ from mistralai import Mistral
 from better_profanity import profanity
 import sqlite3
 import os
+import json
 import uuid
 import re
 
@@ -384,50 +385,48 @@ def vote_on_recipe(recipe_id: int, request: Request, value: int = Form(...)):
 
 @app.post("/submit")
 def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...)):
+    import json
+    import re
+    from mistralai import Mistral
+
     user = request.session.get("user")
     if not user:
         return RedirectResponse("/login", status_code=302)
 
     client = Mistral(api_key=mistral_api_key)
 
-    messages = [
-        {
-            "role": "user",
-            "content": """You are a recipe parser and content cleaner. 
-                Make sure output is safe, appropriate, and well-formatted. 
-                Filter out any offensive language (slurs, cursing, hate speech). 
-                Respond ONLY with valid JSON in this format (preserve newlines and list formatting):
+    messages = [{
+        "role": "user",
+        "content": """You are a recipe parser and content cleaner. 
+Make sure output is safe, appropriate, and well-formatted. 
+Respond ONLY with valid JSON in this format (preserve newlines and list formatting):
 
-                {
-                "title": "...",
-                "description": "...",
-                "ingredients": "- item 1\\n- item 2\\n- item 3",
-                "instructions": "1. Step one\\n2. Step two\\n3. Step three",
-                "notes": "...",      // optional
-                "prep_time": 10,
-                "cook_time": 20,
-                "servings": 4
-                }
+{
+"title": "...",
+"description": "...",             // must not be blank — generate a short summary
+"ingredients": "- item 1\\n- item 2\\n- item 3",
+"instructions": "1. Step one\\n2. Step two\\n3. Step three",
+"notes": "...",                   // optional, but please include helpful tips if not in original
+"prep_time": 10,
+"cook_time": 20,
+"servings": 4
+}
 
-                Input recipe (unstructured):
-                """ + raw
-        }
-    ]
+Your job is to fix formatting, clean the language, and generate a helpful description and notes if they are missing.
 
+Input recipe (unstructured):
+""" + raw
+    }]
 
     chat_response = client.chat.complete(
         model="mistral-medium-latest",
         messages=messages
     )
 
-
-    import json
-
     raw_output = chat_response.choices[0].message.content.strip()
-
     print("Raw Mistral output:", repr(raw_output))
 
-    # Remove markdown-style code fences if present
+    # Clean up markdown-style formatting
     if raw_output.startswith("```json"):
         raw_output = raw_output.lstrip("```json").strip()
     if raw_output.endswith("```"):
@@ -442,6 +441,7 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
             "error": "Something went wrong parsing the recipe. Please try again or reformat."
         })
 
+    # Extract fields
     title = parsed["title"]
     slug = re.sub(r"[^a-z0-9\-]+", "-", title.lower().strip().replace(" ", "-")).strip("-")
     description = parsed["description"]
@@ -452,30 +452,43 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
     cook_time = parsed["cook_time"]
     servings = parsed["servings"]
 
-
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Generate a unique slug by checking for existing slugs and incrementing
+    # Unique slug logic
     base_slug = slug
     i = 2
     while cursor.execute("SELECT 1 FROM recipes WHERE slug = ?", (slug,)).fetchone():
         slug = f"{base_slug}-{i}"
         i += 1
 
+    # Insert recipe
     cursor.execute('''
         INSERT INTO recipes (title, slug, description, ingredients, instructions, notes,
                             prep_time, cook_time, servings, user_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (title or slug, slug, description, ingredients, instructions, notes,
-        prep_time, cook_time, servings, user["id"]))
-
+          prep_time, cook_time, servings, user["id"]))
+    
     recipe_id = cursor.lastrowid
+
+    # Auto-favorite
+    cursor.execute('''
+        INSERT INTO user_favorites (user_id, recipe_id)
+        VALUES (?, ?)
+    ''', (user["id"], recipe_id))
+
+    # Auto-upvote (+5 for authenticated user)
+    cursor.execute('''
+        INSERT INTO recipe_votes (recipe_id, identifier, value)
+        VALUES (?, ?, ?)
+    ''', (recipe_id, user["email"], 5))
+
     conn.commit()
     conn.close()
 
+    return RedirectResponse(f"/recipes/{slug}/edit", status_code=303)
 
-    return RedirectResponse(f"/recipes/{slug}", status_code=303)
 
 @app.get("/recipes/{slug}/edit", response_class=HTMLResponse)
 def edit_recipe_page(slug: str, request: Request):
@@ -510,16 +523,19 @@ def update_recipe(slug: str, request: Request,
                   cook_time: int = Form(...),
                   servings: int = Form(...)):
 
+    import re
+    from better_profanity import profanity
+
     user = request.session.get("user")
     if not user:
         return RedirectResponse("/login", status_code=302)
 
     # Basic format checks
     bad_ingredients = any(not line.strip().startswith("- ") for line in ingredients.strip().splitlines())
+
     lines = [line.strip() for line in instructions.strip().splitlines()]
     expected = 1
     bad_instructions = False
-
     for line in lines:
         match = re.match(r"^(\d+)\.\s", line)
         if not match or int(match.group(1)) != expected:
@@ -527,11 +543,10 @@ def update_recipe(slug: str, request: Request,
             break
         expected += 1
 
-    # Check for profanity in any text field
+    # Profanity check
     text_fields = [title, description, ingredients, instructions, notes]
     bad_language = any(profanity.contains_profanity(field) for field in text_fields)
 
-    # If validation fails, re-render the form with an error
     if bad_ingredients or bad_instructions or bad_language:
         return templates.TemplateResponse("edit_recipe.html", {
             "request": request,
@@ -558,21 +573,35 @@ def update_recipe(slug: str, request: Request,
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute("SELECT user_id FROM recipes WHERE slug = ?", (slug,))
+    cursor.execute("SELECT * FROM recipes WHERE slug = ?", (slug,))
     row = cursor.fetchone()
     if not row or (row["user_id"] != user["id"] and user["id"] != 1):
         conn.close()
         return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
 
+    old_title = row["title"]
+    old_slug = row["slug"]
+
+    # If title changed, regenerate slug
+    new_slug = old_slug
+    if title.strip() != old_title.strip():
+        base_slug = re.sub(r"[^a-z0-9\-]+", "-", title.lower().strip().replace(" ", "-")).strip("-")
+        new_slug = base_slug
+        i = 2
+        while cursor.execute("SELECT 1 FROM recipes WHERE slug = ? AND slug != ?", (new_slug, old_slug)).fetchone():
+            new_slug = f"{base_slug}-{i}"
+            i += 1
+
     cursor.execute("""
-        UPDATE recipes SET title = ?, description = ?, ingredients = ?, instructions = ?,
+        UPDATE recipes SET title = ?, slug = ?, description = ?, ingredients = ?, instructions = ?,
             notes = ?, prep_time = ?, cook_time = ?, servings = ?, updated_at = CURRENT_TIMESTAMP
         WHERE slug = ?
-    """, (title, description, ingredients, instructions, notes,
-          prep_time, cook_time, servings, slug))
+    """, (title, new_slug, description, ingredients, instructions, notes,
+          prep_time, cook_time, servings, old_slug))
 
     conn.commit()
     conn.close()
 
-    return RedirectResponse(f"/recipes/{slug}/edit", status_code=303)
+    return RedirectResponse(f"/recipes/{new_slug}", status_code=303)
+
 
