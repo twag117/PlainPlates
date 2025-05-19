@@ -5,9 +5,11 @@ from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 from auth import oauth, create_or_update_user
+from mistralai import Mistral
 import sqlite3
 import os
 import uuid
+import re
 
 load_dotenv()
 
@@ -15,6 +17,7 @@ app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
 templates = Jinja2Templates(directory="templates")
 DB_PATH = Path("data/plainplates.db")
+mistral_api_key = os.getenv("MISTRAL_API_KEY")
 
 def get_categories():
     conn = sqlite3.connect(DB_PATH)
@@ -383,21 +386,74 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
     if not user:
         return RedirectResponse("/login", status_code=302)
 
-    # TODO: run `raw` through Mistral to extract recipe data
-    # For now, simulate with dummy values
+    client = Mistral(api_key=mistral_api_key)
 
-    # Placeholder values (to be replaced by AI result)
-    slug = title.lower().strip().replace(" ", "-") or "recipe-" + str(uuid.uuid4())[:8]
-    description = "AI-parsed description (placeholder)"
-    ingredients = "1 cup placeholder\n2 tsp placeholder"
-    instructions = "1. Do this\n2. Then that"
-    notes = "Optional notes"
-    prep_time = 10
-    cook_time = 15
-    servings = 4
+    messages = [
+        {
+            "role": "user",
+            "content": """You are a recipe parser. Respond ONLY with valid JSON in this format (preserve newlines and list formatting):
+
+    {
+    "title": "...",
+    "description": "...",
+    "ingredients": "- item 1\\n- item 2\\n- item 3",
+    "instructions": "1. Step one\\n2. Step two\\n3. Step three",
+    "notes": "...",      // optional
+    "prep_time": 10,
+    "cook_time": 20,
+    "servings": 4
+    }
+
+    Input recipe (unstructured):
+    """ + raw
+        }
+    ]
+
+
+    chat_response = client.chat.complete(
+        model="mistral-small-latest",
+        messages=messages
+    )
+
+
+    import json
+
+    raw_output = chat_response.choices[0].message.content.strip()
+
+    print("Raw Mistral output:", repr(raw_output))
+
+    # Remove markdown-style code fences if present
+    if raw_output.startswith("```json"):
+        raw_output = raw_output.lstrip("```json").strip()
+    if raw_output.endswith("```"):
+        raw_output = raw_output[:-3].strip()
+
+    try:
+        parsed = json.loads(raw_output)
+    except Exception as e:
+        print("Mistral parse error:", e)
+        return templates.TemplateResponse("submit.html", {
+            "request": request,
+            "error": "Something went wrong parsing the recipe. Please try again or reformat."
+        })
+
+    title = parsed["title"]
+    slug = re.sub(r"[^a-z0-9\-]+", "-", title.lower().strip().replace(" ", "-")).strip("-")
+    description = parsed["description"]
+    ingredients = parsed["ingredients"]
+    instructions = parsed["instructions"]
+    notes = parsed.get("notes", "")
+    prep_time = parsed["prep_time"]
+    cook_time = parsed["cook_time"]
+    servings = parsed["servings"]
+
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    existing = cursor.execute("SELECT 1 FROM recipes WHERE slug = ?", (slug,)).fetchone()
+    if existing:
+        slug = slug + "-" + str(uuid.uuid4())[:6]
 
     cursor.execute('''
         INSERT INTO recipes (title, slug, description, ingredients, instructions, notes,
