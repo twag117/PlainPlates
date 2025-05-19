@@ -186,7 +186,7 @@ def recipe_detail(slug: str, request: Request):
 
     cursor.execute('''
         SELECT recipes.id, title, slug, description, ingredients, instructions, notes,
-               prep_time, cook_time, COALESCE(SUM(recipe_votes.value), 0) as score
+               prep_time, cook_time, COALESCE(SUM(recipe_votes.value), 0) as score, user_id
         FROM recipes
         LEFT JOIN recipe_votes ON recipes.id = recipe_votes.recipe_id
         WHERE slug = ?
@@ -451,20 +451,24 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    existing = cursor.execute("SELECT 1 FROM recipes WHERE slug = ?", (slug,)).fetchone()
-    if existing:
-        slug = slug + "-" + str(uuid.uuid4())[:6]
+    # Generate a unique slug by checking for existing slugs and incrementing
+    base_slug = slug
+    i = 2
+    while cursor.execute("SELECT 1 FROM recipes WHERE slug = ?", (slug,)).fetchone():
+        slug = f"{base_slug}-{i}"
+        i += 1
 
     cursor.execute('''
         INSERT INTO recipes (title, slug, description, ingredients, instructions, notes,
-                             prep_time, cook_time, servings, user_id)
+                            prep_time, cook_time, servings, user_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (title or slug, slug, description, ingredients, instructions, notes,
-          prep_time, cook_time, servings, user["id"]))
+        prep_time, cook_time, servings, user["id"]))
 
     recipe_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
 
     return RedirectResponse(f"/recipes/{slug}", status_code=303)
 
@@ -505,6 +509,7 @@ def update_recipe(slug: str, request: Request,
         return RedirectResponse("/login", status_code=302)
 
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     cursor.execute("SELECT user_id FROM recipes WHERE slug = ?", (slug,))

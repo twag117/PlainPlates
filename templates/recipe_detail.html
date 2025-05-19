@@ -9,16 +9,29 @@
     </a>
 
     <h1 class="text-3xl font-bold mb-2">{{ recipe.title }}</h1>
-    <form method="post" action="/favorites/{{ recipe.id }}" class="mb-4">
-        <button type="submit"
-            class="text-sm text-primary-600 hover:underline">
-            {% if is_favorited %}
-                💔 Remove from Favorites
-            {% else %}
-                ❤️ Add to Favorites
-            {% endif %}
-        </button>
-    </form>
+    <div class="flex items-center justify-between text-sm text-gray-500 mb-6">
+		<form method="post" action="/favorites/{{ recipe.id }}" class="mb-4">
+			<button type="submit"
+				class="text-sm text-primary-600 hover:underline">
+				{% if is_favorited %}
+					💔 Remove from Favorites
+				{% else %}
+					❤️ Add to Favorites
+				{% endif %}
+			</button>
+		</form>
+
+		{% if request.session.user and request.session.user.id == recipe.user_id %}
+			<div class="text-right mb-4">
+				<a href="/recipes/{{ recipe.slug }}/edit"
+					class="text-sm text-primary-600 hover:underline font-medium">
+					✏️ Edit Recipe
+				</a>
+			</div>
+		{% endif %}
+
+	</div>
+
 
 
     <p class="text-gray-600 mb-4">{{ recipe.description }}</p>
@@ -32,29 +45,28 @@
 
     <div class="flex items-center justify-between text-sm text-gray-500 mb-6">
         <span>Total Time: {{ recipe.prep_time + recipe.cook_time }} min</span>
-        <!-- <span>Score: {% if recipe.score > 0 %}🔥{% else %}🧊{% endif %} {{ recipe.score }}</span> -->
     
 
-<div class="flex items-center gap-4 mb-6">
-  <form method="post" action="/recipes/{{ recipe.id }}/vote">
-    <input type="hidden" name="value" value="1">
-    <button type="submit"
-            class="flex items-center gap-1 text-sm px-2 py-1 rounded
-                   {% if vote == 1 %}bg-green-100 text-green-700{% else %}text-gray-600 hover:text-green-600{% endif %}">
-      👍 {{ recipe.score }}
-    </button>
-  </form>
+		<div class="flex items-center gap-4 mb-6">
+		<form method="post" action="/recipes/{{ recipe.id }}/vote">
+			<input type="hidden" name="value" value="1">
+			<button type="submit"
+					class="flex items-center gap-1 text-sm px-2 py-1 rounded
+						{% if vote == 1 %}bg-green-100 text-green-700{% else %}text-gray-600 hover:text-green-600{% endif %}">
+			👍 {{ recipe.score }}
+			</button>
+		</form>
 
-  <form method="post" action="/recipes/{{ recipe.id }}/vote">
-    <input type="hidden" name="value" value="-1">
-    <button type="submit"
-            class="text-sm px-2 py-1 rounded
-                   {% if vote == -1 %}bg-red-100 text-red-600{% else %}text-gray-600 hover:text-red-600{% endif %}">
-      👎
-    </button>
-  </form>
-</div>
-</div>
+		<form method="post" action="/recipes/{{ recipe.id }}/vote">
+			<input type="hidden" name="value" value="-1">
+			<button type="submit"
+					class="text-sm px-2 py-1 rounded
+						{% if vote == -1 %}bg-red-100 text-red-600{% else %}text-gray-600 hover:text-red-600{% endif %}">
+			👎
+			</button>
+		</form>
+		</div>
+	</div>
 
 
     {% if recipe.tags %}
