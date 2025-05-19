@@ -16,7 +16,7 @@ import re
 
 load_dotenv()
 profanity.load_censor_words()
-for word in ["pot", "chili", "corn"]:
+for word in ["pot", "breast", "breasts"]:
     if word in profanity.CENSOR_WORDSET:
         profanity.CENSOR_WORDSET.remove(word)
 
