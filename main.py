@@ -411,7 +411,7 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
 
 
     chat_response = client.chat.complete(
-        model="mistral-small-latest",
+        model="mistral-medium-latest",
         messages=messages
     )
 
@@ -463,6 +463,63 @@ def submit_recipe(request: Request, title: str = Form(""), raw: str = Form(...))
           prep_time, cook_time, servings, user["id"]))
 
     recipe_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(f"/recipes/{slug}", status_code=303)
+
+@app.get("/recipes/{slug}/edit", response_class=HTMLResponse)
+def edit_recipe_page(slug: str, request: Request):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM recipes WHERE slug = ?", (slug,))
+    recipe = cursor.fetchone()
+    if not recipe or recipe["user_id"] != user["id"]:
+        conn.close()
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+    conn.close()
+    return templates.TemplateResponse("edit_recipe.html", {
+        "request": request,
+        "recipe": dict(recipe)
+    })
+
+@app.post("/recipes/{slug}/edit")
+def update_recipe(slug: str, request: Request,
+                  title: str = Form(...),
+                  description: str = Form(...),
+                  ingredients: str = Form(...),
+                  instructions: str = Form(...),
+                  notes: str = Form(""),
+                  prep_time: int = Form(...),
+                  cook_time: int = Form(...),
+                  servings: int = Form(...)):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT user_id FROM recipes WHERE slug = ?", (slug,))
+    row = cursor.fetchone()
+    if not row or row["user_id"] != user["id"]:
+        conn.close()
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+    cursor.execute("""
+        UPDATE recipes SET title = ?, description = ?, ingredients = ?, instructions = ?,
+            notes = ?, prep_time = ?, cook_time = ?, servings = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE slug = ?
+    """, (title, description, ingredients, instructions, notes,
+          prep_time, cook_time, servings, slug))
+
     conn.commit()
     conn.close()
 
