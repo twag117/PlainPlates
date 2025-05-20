@@ -1,0 +1,68 @@
+# PlainPlates Rebuild – Backend-First Checklist
+
+## 1. Core Planning
+- [ ] Define key models: `User`, `Recipe`, `Category`, `Vote`, `Favorite`
+- [ ] Map essential routes: login, submit, edit, view, list, vote, favorite
+- [ ] Choose database (SQLite is fine for now)
+
+## 2. Database Schema
+- [ ] Create tables:
+  - [ ] `users`
+  - [ ] `recipes`
+  - [ ] `categories`
+  - [ ] `recipe_categories`
+  - [ ] `recipe_votes`
+  - [ ] `user_favorites`
+- [ ] Add created/updated timestamps
+- [ ] Set foreign key constraints
+- [ ] Write `init_db.py` to bootstrap schema and seed category data
+
+## 3. Authentication
+- [ ] Google OAuth (or username/email auth)
+- [ ] Session middleware and secure login flow
+- [ ] Protected route decorator (`login_required`)
+
+## 4. Recipe Logic
+- [ ] `/submit` route – POST form, AI optional
+- [ ] `/recipes/{slug}` – view single recipe
+- [ ] `/recipes/{slug}/edit` – GET/POST
+- [ ] Slug generator + conflict handler
+- [ ] `/recipes` list view with optional search and category filter
+
+## 5. Voting + Favorites
+- [ ] Upvote/downvote via POST
+- [ ] Favorite toggle
+- [ ] Auto-favorite and upvote on submission
+
+## 6. AI Integration (Optional)
+- [ ] Add `parse_recipe(raw_input)` using Mistral API
+- [ ] Strip markdown fences, validate JSON
+- [ ] Use in `/submit`, optionally `/edit`
+
+## 7. Validation
+- [ ] Ingredient line check (`- `)
+- [ ] Instruction line check (`1. `, ordered)
+- [ ] Profanity filtering (use `better-profanity` or `profanity-check`)
+- [ ] Required fields: title, description, ingredients, instructions, category
+
+## 8. Minimal Templates
+- [ ] Plain Jinja templates with:
+  - [ ] Login page
+  - [ ] Submit/edit form
+  - [ ] Recipe view
+  - [ ] Recipe list
+
+## 9. UI Polish Phase (Once Functional)
+- [ ] Add Tailwind
+- [ ] Improve layout, spacing, and forms
+- [ ] Add mobile nav
+- [ ] Add category pill UI
+- [ ] Add placeholder images
+- [ ] Add success/error banners (flash messages)
+
+## 10. Optional Extras
+- [ ] "My Recipes" page
+- [ ] Recipe scaling (change servings)
+- [ ] Clone recipe
+- [ ] User profiles
+- [ ] Image upload or URL support
